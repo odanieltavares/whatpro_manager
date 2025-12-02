@@ -1,36 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Whatpro Manager
 
-## Getting Started
+Plataforma moderna para gerenciamento completo de instâncias WhatsApp via **Uazapi API**.
 
-First, run the development server:
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+## 🚀 Funcionalidades
+
+- ✅ **Gerenciamento de Instâncias WhatsApp** - Criar, conectar (QR Code/Paircode) e monitorar instâncias
+- ✅ **Envio de Mensagens** - Texto, mídia e documentos
+- ✅ **Webhooks** - Configuração e logs de eventos
+- ✅ **Integração Chatwoot** - Sincronização nativa de conversas
+- ✅ **UI Responsiva** - Sidebar colapsável (desktop) e menu mobile
+- ✅ **Tema Claro/Escuro** - Alternância com persistência de preferência
+- ✅ **TypeScript** - Type-safety completo
+
+## 🛠️ Stack Tecnológico
+
+- **Framework**: Next.js 14 (App Router)
+- **Linguagem**: TypeScript
+- **Estilização**: TailwindCSS 4
+- **Componentes**: shadcn/ui
+- **State**: Zustand
+- **HTTP Client**: Axios
+- **Ícones**: Lucide React
+- **Charts**: Recharts
+- **Notificações**: Sonner
+
+## 📦 Instalação
 
 ```bash
+# Clone o repositório
+git clone https://github.com/seu-usuario/whatpro-manager.git
+
+# Entre na pasta
+cd whatpro-manager
+
+# Instale as dependências
+npm install
+
+# Configure variáveis de ambiente (opcional)
+cp .env.example .env.local
+
+# Inicie o servidor de desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse: `http://localhost:3001`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ⚙️ Configuração
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Admin Token
 
-## Learn More
+1. Obtenha seu Admin Token do Uazapi
+2. Acesse **Configurações** no menu
+3. Cole o Admin Token e salve
 
-To learn more about Next.js, take a look at the following resources:
+### 2. URL Base (Opcional)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Padrão: `https://free.uazapi.com`
+- Para servidor próprio: altere em Configurações
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Criar Primeira Instância
 
-## Deploy on Vercel
+1. Vá em **Instâncias**
+2. Clique em "Nova Instância"
+3. Escaneie o QR Code no WhatsApp
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🎨 Recursos Visuais
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Sidebar Responsiva**: Colapsável no desktop (64px ↔ 256px)
+- **Menu Mobile**: Overlay com backdrop
+- **Dark Mode**: Tema claro/escuro com animações suaves
+- **Componentes Modernos**: shadcn/ui com tema Neutral
+
+## 📝 Scripts Disponíveis
+
+```bash
+npm run dev      # Desenvolvimento (porta 3001)
+npm run build    # Build para produção
+npm start        # Produção (porta 3001)
+npm run lint     # Lint
+```
+
+## 🔐 Variáveis de Ambiente
+
+Crie um arquivo `.env.local`:
+
+```env
+NEXT_PUBLIC_UAZAPI_URL=https://free.uazapi.com
+NEXT_PUBLIC_UAZAPI_ADMIN_TOKEN=seu_token_aqui
+```
+
+> **Nota**: Você também pode configurar esses valores diretamente na UI em **Configurações**.
+
+## 🏗️ Estrutura do Projeto
+
+```
+whatpro_manager/
+├── app/
+│   ├── (pages)/          # Páginas da aplicação
+│   ├── layout.tsx        # Layout raiz
+│   └── page.tsx          # Dashboard
+├── components/
+│   ├── ui/               # Componentes shadcn/ui
+│   ├── sidebar.tsx       # Navegação lateral
+│   └── ...
+├── lib/
+│   ├── uazapi/           # Cliente API
+│   └── store/            # Zustand stores
+└── types/                # TypeScript types
+```
+
+## 🤝 Contribuindo
+
+Contribuições são bem-vindas! Sinta-se livre para:
+
+1. Fazer fork do projeto
+2. Criar uma branch para sua feature (`git checkout -b feature/MinhaFeature`)
+3. Commit suas mudanças (`git commit -m 'Add: Minha feature'`)
+4. Push para a branch (`git push origin feature/MinhaFeature`)
+5. Abrir um Pull Request
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+## 🙋 Suporte
+
+Para suporte, abra uma [issue](https://github.com/seu-usuario/whatpro-manager/issues) no GitHub.
+
+## 🔗 Links Úteis
+
+- [Documentação Uazapi](https://uazapi.com/docs)
+- [Next.js Docs](https://nextjs.org/docs)
+- [shadcn/ui](https://ui.shadcn.com)
+
+---
+
+**Desenvolvido com ❤️ usando Next.js e TailwindCSS**
