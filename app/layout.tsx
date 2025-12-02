@@ -23,7 +23,7 @@ export default function RootLayout({
         <title>Whatpro Manager - Gerenciamento WhatsApp</title>
         <meta name="description" content="Plataforma moderna para gerenciamento de instâncias WhatsApp via Uazapi" />
       </head>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <LayoutContent>{children}</LayoutContent>
         <Toaster />
       </body>
