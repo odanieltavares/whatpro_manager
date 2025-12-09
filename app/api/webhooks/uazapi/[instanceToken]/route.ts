@@ -407,11 +407,20 @@ async function handleCallEvent(instance: any, body: any) {
     const callData = body?.data || body?.event || body;
     
     // Tentar extrair 'from' de múltiplos formatos possíveis
-    const from = callData?.from || 
+    let from = callData?.from || 
                  callData?.From || 
                  callData?.caller || 
                  callData?.CallCreator ||
                  callData?.CallCreatorAlt;
+    
+    // Se from for LID, tentar achar o JID (telefone) correspondente
+    if (from && from.includes('@lid')) {
+      const jidCandidate = callData?.CallCreatorJid || callData?.participant || callData?.jid || callData?.Jid;
+      if (jidCandidate && jidCandidate.includes('@s.whatsapp.net')) {
+        console.log(`[UazapiWebhook] Substituindo LID (${from}) por JID (${jidCandidate})`);
+        from = jidCandidate;
+      }
+    }
     
     // Tentar extrair 'callId' de múltiplos formatos possíveis
     const callId = callData?.id || 
