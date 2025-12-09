@@ -374,12 +374,32 @@ async function handleMessageUpdate(instance: any, body: any) {
 
 async function handleCallEvent(instance: any, body: any) {
   try {
-    const callData = body?.data || body;
-    const from = callData?.from || callData?.caller;
-    const callId = callData?.id || callData?.callId;
+    console.log('[UazapiWebhook] ========== CALL EVENT DEBUG ==========');
+    console.log('[UazapiWebhook] Body completo:', JSON.stringify(body, null, 2));
+    
+    // A Uazapi envia o evento em diferentes formatos
+    const callData = body?.data || body?.event || body;
+    
+    // Tentar extrair 'from' de múltiplos formatos possíveis
+    const from = callData?.from || 
+                 callData?.From || 
+                 callData?.caller || 
+                 callData?.CallCreator ||
+                 callData?.CallCreatorAlt;
+    
+    // Tentar extrair 'callId' de múltiplos formatos possíveis
+    const callId = callData?.id || 
+                   callData?.callId || 
+                   callData?.CallID;
+
+    console.log('[UazapiWebhook] callData:', callData);
+    console.log('[UazapiWebhook] from:', from);
+    console.log('[UazapiWebhook] callId:', callId);
 
     if (!from) {
       console.warn('[UazapiWebhook] CALL_EVENT sem origem');
+      console.warn('[UazapiWebhook] Body keys:', Object.keys(body));
+      console.warn('[UazapiWebhook] CallData keys:', Object.keys(callData));
       return;
     }
 
@@ -389,6 +409,9 @@ async function handleCallEvent(instance: any, body: any) {
     const behavior = await prisma.instanceBehavior.findUnique({
       where: { instanceId: instance.id },
     });
+
+    console.log('[UazapiWebhook] Behavior encontrado:', behavior ? 'SIM' : 'NÃO');
+    console.log('[UazapiWebhook] autoRejectCalls:', behavior?.autoRejectCalls);
 
     if (!behavior || !behavior.autoRejectCalls) {
       console.log('[UazapiWebhook] CallReject desabilitado para instância');
