@@ -137,7 +137,7 @@ async function resolveInstance(instanceToken: string) {
 // ========================================
 
 function classifyEvent(body: any): UazapiEventKind {
-  const eventType = body?.EventType;
+  const eventType = body?.EventType || body?.type; // Aceitar ambos os formatos
   const updateType = body?.update?.eventType;
 
   // Mensagens novas de usuário
@@ -168,8 +168,9 @@ function classifyEvent(body: any): UazapiEventKind {
     return UazapiEventKind.MESSAGE_UPDATE;
   }
 
-  // Chamadas
-  if (eventType === 'call' || eventType === 'voip') {
+  // Chamadas - Aceitar múltiplos formatos da Uazapi
+  const eventTypeLower = eventType?.toLowerCase();
+  if (eventTypeLower === 'call' || eventTypeLower === 'voip' || eventType === 'Call') {
     return UazapiEventKind.CALL_EVENT;
   }
 
@@ -397,18 +398,15 @@ async function handleCallEvent(instance: any, body: any) {
     console.log('[UazapiWebhook] CallReject habilitado, rejeitando chamada');
 
     // Rejeitar chamada via provider
-    // TODO: Reativar quando WhatsAppProviderService estiver implementado
-    // const { WhatsAppProviderService } = await import('@/lib/whatsapp/whatsapp-provider.service');
-    // const providerService = new WhatsAppProviderService();
+    const { WhatsAppProviderService } = await import('@/lib/whatsapp/whatsapp-provider.service');
+    const providerService = new WhatsAppProviderService();
 
-    // try {
-    //   await providerService.callReject(instance.id, from, callId);
-    //   console.log('[UazapiWebhook] Chamada rejeitada');
-    // } catch (error) {
-    //   console.error('[UazapiWebhook] Erro ao rejeitar chamada:', error);
-    // }
-
-    console.log('[UazapiWebhook] CallReject temporariamente desabilitado (WhatsAppProviderService não implementado)');
+    try {
+      await providerService.callReject(instance.id, from, callId);
+      console.log('[UazapiWebhook] Chamada rejeitada com sucesso');
+    } catch (error) {
+      console.error('[UazapiWebhook] Erro ao rejeitar chamada:', error);
+    }
 
     // Se auto-reply habilitado, enfileirar mensagens
     if (behavior.autoReplyCallsEnabled && behavior.autoReplyCallsMessages) {
