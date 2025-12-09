@@ -78,6 +78,60 @@ export async function DELETE(
 ) {
   try {
     const { id: instanceId } = await context.params;
+    const { searchParams } = new URL(request.url);
+    const deleteFromApi = searchParams.get('deleteFromApi') === 'true';
+
+    // Get instance details before deleting
+    const instance = await prisma.instance.findUnique({
+      where: { id: instanceId },
+      select: {
+        instanceIdentifier: true,
+        apiToken: true,
+        provider: true,
+        baseUrl: true
+      }
+    });
+
+    if (!instance) {
+      return NextResponse.json(
+        { error: 'Instance not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete from provider API if requested
+    if (deleteFromApi) {
+      try {
+        const { ProviderFactory } = await import('@/lib/providers/factory');
+        
+        // Find the correct provider config from database
+        const providerConfig = await ProviderFactory.findConfig(instance.provider);
+        
+        if (!providerConfig) {
+          throw new Error(`Provider configuration not found for ${instance.provider}`);
+        }
+
+        const providerInstance = ProviderFactory.create(providerConfig);
+        
+        // Use instanceIdentifier for Evolution, apiToken for Uazapi
+        const identifier = instance.provider === 'EVOLUTION' 
+          ? instance.instanceIdentifier 
+          : instance.apiToken;
+          
+        await providerInstance.deleteInstance(identifier);
+      } catch (apiError: any) {
+        console.error('Error deleting from provider API:', apiError);
+        // Continue with database deletion even if API deletion fails
+        // Return warning in response
+        return NextResponse.json(
+          { 
+            success: true, 
+            warning: `Instance deleted from Manager, but failed to delete from ${instance.provider} API: ${apiError.message}` 
+          },
+          { status: 200 }
+        );
+      }
+    }
 
     // Remover dependências que não estão com cascade no schema
     await prisma.$transaction([
@@ -90,7 +144,12 @@ export async function DELETE(
       prisma.instance.delete({ where: { id: instanceId } }),
     ]);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      message: deleteFromApi 
+        ? 'Instance deleted from Manager and API' 
+        : 'Instance deleted from Manager only'
+    });
   } catch (error) {
     console.error('Error deleting instance:', error);
     return NextResponse.json(

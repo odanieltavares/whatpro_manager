@@ -19,6 +19,8 @@ import { ArrowLeft, CheckCircle2, XCircle, Loader2, Save, Trash2, Server } from 
 import { instancesApi } from '@/lib/api/endpoints/instances';
 import type { Instance } from '@/lib/api/types/instance.types';
 import { toast } from 'sonner';
+import { MaskedTokenDisplay } from '@/components/masked-token-display';
+import { DeleteInstanceDialog } from '@/components/delete-instance-dialog';
 import { QRCodeDisplay } from '@/components/qrcode-display';
 import { PaircodeGenerator } from '@/components/paircode-generator';
 import { StatusDisplay } from '@/components/status-display';
@@ -30,9 +32,10 @@ export default function InstanceDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [instance, setInstance] = useState<any>(null);
   const [behavior, setBehavior] = useState<any>(null);
-  const [deleting, setDeleting] = useState(false);
   const [chatwootConfig, setChatwootConfig] = useState<any>(null);
   const [savingChatwoot, setSavingChatwoot] = useState(false);
   const [tab, setTab] = useState<string>('overview');
@@ -122,12 +125,24 @@ export default function InstanceDetailPage() {
     );
   }
 
-  async function deleteInstance() {
-    if (!window.confirm('Tem certeza que deseja excluir esta instância?')) return;
+  async function deleteInstance(deleteFromApi: boolean) {
     try {
       setDeleting(true);
-      await instancesApi.delete(instanceId);
-      toast.success('Instância excluída');
+      setShowDeleteDialog(false);
+      
+      const url = `/api/instances/${instanceId}${
+        deleteFromApi ? '?deleteFromApi=true' : ''
+      }`;
+      
+      const response = await fetch(url, { method: 'DELETE' });
+      const data = await response.json();
+      
+      if (data.warning) {
+        toast.warning(data.warning);
+      } else if (data.success) {
+        toast.success(data.message || 'Instância excluída');
+      }
+      
       router.push('/instances');
     } catch (error: unknown) {
       toast.error('Erro ao excluir instância');
@@ -228,17 +243,30 @@ export default function InstanceDetailPage() {
           <Button
             variant="destructive"
             size="sm"
-            onClick={deleteInstance}
+            onClick={() => setShowDeleteDialog(true)}
             disabled={deleting}
           >
             {deleting ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Excluindo...
+              </>
             ) : (
-              <Trash2 className="w-4 h-4 mr-2" />
+              <>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir
+              </>
             )}
-            Excluir
           </Button>
         </div>
+
+        <DeleteInstanceDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          onConfirm={deleteInstance}
+          instanceName={instance.instanceIdentifier || instance.name || 'Instância'}
+          provider={instance.provider}
+        />
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
@@ -309,42 +337,15 @@ export default function InstanceDetailPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label className="text-muted-foreground">Token da instância</Label>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm break-all flex-1">{instance.apiToken || '---'}</p>
-                    {instance.apiToken && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(instance.apiToken, 'Token')}
-                      >
-                        Copiar
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                <MaskedTokenDisplay 
+                  token={instance.apiToken || ''} 
+                  label="Token da Instância" 
+                />
                 <div>
                   <Label className="text-muted-foreground">Usuário / Owner JID</Label>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm flex-1">
-                      {instance.ownerJid || instance.phoneNumber || '---'}
-                    </p>
-                    {(instance.ownerJid || instance.phoneNumber) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          copyToClipboard(
-                            instance.ownerJid || instance.phoneNumber,
-                            'Usuário/Owner JID'
-                          )
-                        }
-                      >
-                        Copiar
-                      </Button>
-                    )}
-                  </div>
+                  <p className="text-sm font-mono break-all">
+                    {instance.ownerJid || instance.phoneNumber || 'Não conectado'}
+                  </p>
                 </div>
               </div>
 

@@ -168,6 +168,18 @@ export class EvolutionProvider implements IWhatsAppProvider {
     }
   }
 
+  async deleteInstance(instanceName: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/instance/delete/${instanceName}`, {
+      method: 'DELETE',
+      headers: { 'apikey': this.apiKey }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to delete instance from Evolution API: ${response.statusText}`);
+    }
+  }
+
   /**
    * Map Evolution API response to standard format
    */
@@ -187,13 +199,15 @@ export class EvolutionProvider implements IWhatsAppProvider {
     return {
       id: raw.id || raw.instanceId || raw.instanceName || raw.name,
       name: raw.name || raw.instanceName,
-      token: raw.token || raw.name || raw.instanceName,
+      // ✅ Fix: Check multiple token field variants
+      token: raw.apikey || raw.token || raw.apiToken || raw.name || raw.instanceName,
       status,
       profileName: raw.profileName,
       profilePicUrl: raw.profilePicUrl,
       phoneNumber: raw.number,
       isBusiness: raw.businessId != null,
-      ownerJid: raw.ownerJid,
+      // ✅ Fix: Check multiple ownerJid variants
+      ownerJid: raw.ownerJid || raw.owner || raw.jid,
       integration: raw.integration,
       businessId: raw.businessId
     };

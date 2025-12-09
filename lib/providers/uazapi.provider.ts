@@ -184,6 +184,22 @@ export class UazapiProvider implements IWhatsAppProvider {
     }
   }
 
+  async deleteInstance(instanceToken: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/instance/delete`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'admintoken': this.adminToken || '',
+        'token': instanceToken
+      }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to delete instance from Uazapi: ${response.statusText}`);
+    }
+  }
+
   async rejectCall(number: string, callId: string, instanceToken?: string): Promise<{ success: boolean; message?: string }> {
     const token = instanceToken || this.instanceToken;
     if (!token) {
@@ -217,7 +233,8 @@ export class UazapiProvider implements IWhatsAppProvider {
     return {
       id: raw.id,
       name: raw.name,
-      token: raw.token,
+      // ✅ Fix: Check multiple token field variants
+      token: raw.apikey || raw.token || raw.apiToken,
       status: raw.status,
       profileName: raw.profileName,
       profilePicUrl: raw.profilePicUrl,
@@ -225,6 +242,8 @@ export class UazapiProvider implements IWhatsAppProvider {
       isBusiness: raw.isBusiness,
       systemName: raw.systemName,
       owner: raw.owner,
+      // ✅ Fix: Add ownerJid extraction
+      ownerJid: raw.ownerJid || raw.jid || raw.owner,
       lastDisconnect: raw.lastDisconnect,
       lastDisconnectReason: raw.lastDisconnectReason
     };

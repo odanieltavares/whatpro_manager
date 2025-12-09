@@ -73,4 +73,9 @@ export interface IWhatsAppProvider {
    * Disconnect instance
    */
   disconnect(instanceToken: string): Promise<void>;
+
+  /**
+   * Delete instance from provider API
+   */
+  deleteInstance(instanceToken: string): Promise<void>;
 }
