@@ -69,8 +69,10 @@ export class ConfigService {
       }
     }
 
-    // Validate in production
-    if (!isDevelopment) {
+    // Validate in production (but skip during build phase)
+    const isBuilding = process.env.NEXT_PHASE === 'phase-production-build';
+    
+    if (!isDevelopment && !isBuilding) {
       if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
         throw new Error('JWT_SECRET must be at least 32 characters in production');
       }
@@ -80,6 +82,12 @@ export class ConfigService {
       if (!process.env.DATABASE_URL) {
         throw new Error('DATABASE_URL is required');
       }
+    }
+    
+    // Warn during build if production env vars are missing
+    if (isBuilding) {
+      console.log('📦 Building in production mode - env validation skipped');
+      console.log('⚠️  Remember to set proper env vars before deployment!');
     }
   }
 

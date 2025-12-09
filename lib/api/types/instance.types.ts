@@ -64,6 +64,8 @@ export interface UpdateInstanceRequest {
 
 export interface QRCodeResponse {
   qrcode: string;
+  pairingCode?: string;
+  message?: string;
   expiresIn?: number;
 }
 

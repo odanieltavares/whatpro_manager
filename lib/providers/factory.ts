@@ -32,9 +32,11 @@ export class ProviderFactory {
   }
 
   /**
-   * Find provider configuration by provider name
+   * Find provider configuration by provider name and optionally by baseUrl
+   * @param provider - Provider name (UAZAPI, EVOLUTION)
+   * @param baseUrl - Optional baseUrl to filter by specific provider instance
    */
-  static async findConfig(provider: string): Promise<ProviderConfig | null> {
+  static async findConfig(provider: string, baseUrl?: string): Promise<ProviderConfig | null> {
     if (!provider || typeof provider !== 'string') {
       console.error('[ProviderFactory] Invalid provider:', provider);
       return null;
@@ -42,15 +44,27 @@ export class ProviderFactory {
 
     const providerUpper = provider.toUpperCase();
     
+    // Build where clause with optional baseUrl filter
+    const whereClause: {
+      provider: string;
+      isActive: boolean;
+      baseUrl?: string;
+    } = {
+      provider: providerUpper,
+      isActive: true
+    };
+    
+    if (baseUrl) {
+      whereClause.baseUrl = baseUrl;
+    }
+    
     const config = await prisma.providerConfig.findFirst({
-      where: {
-        provider: providerUpper,
-        isActive: true
-      }
+      where: whereClause
     });
 
     if (!config) {
-      console.warn(`[ProviderFactory] No active config found for provider: ${providerUpper}`);
+      const filterInfo = baseUrl ? `${providerUpper} with baseUrl ${baseUrl}` : providerUpper;
+      console.warn(`[ProviderFactory] No active config found for provider: ${filterInfo}`);
       return null;
     }
     
