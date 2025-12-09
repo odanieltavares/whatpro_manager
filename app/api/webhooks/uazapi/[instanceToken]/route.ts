@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { RedisQueueService } from '@/lib/redis/redis-queue.service';
 import { RedisKeys } from '@/lib/redis/redis-keys';
-import { QueueJob, Direction } from '@/lib/redis/types';
+import { OutboundMessageDTO, QueueJob, Direction } from '@/lib/redis/types';
 
 // Tipos de eventos classificados
 enum UazapiEventKind {
@@ -438,17 +438,43 @@ async function handleCallEvent(instance: any, body: any) {
 
       console.log('[UazapiWebhook] Enfileirando auto-reply messages:', messages.length);
 
-      // TODO: Enfileirar mensagens com delays
-      // Por agora, apenas loga
-      for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i];
-        const delay = delays[i] || 0;
+      // Envio direto com delay (solução simplificada para webhook)
+      console.log('[UazapiWebhook] Iniciando envio de auto-reply messages:', messages.length);
+      
+      // Processar em background para não bloquear a resposta do webhook
+      (async () => {
+        try {
+          for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            const delaySeconds = delays[i] || 0;
+            
+            if (delaySeconds > 0) {
+              console.log(`[UazapiWebhook] Aguardando delay de ${delaySeconds}s...`);
+              await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+            }
 
-        console.log(`[UazapiWebhook] Mensagem ${i + 1}: "${msg.text}" (delay: ${delay}s)`);
+            console.log(`[UazapiWebhook] Enviando mensagem ${i + 1}: "${msg.text}"`);
 
-        // Enfileirar job com delay
-        // TODO: Implementar delayed queue ou usar setTimeout em worker
-      }
+            const outboundMessage: OutboundMessageDTO = {
+              number: from.replace('@c.us', '').replace('@s.whatsapp.net', ''),
+              type: 'text',
+              text: msg.text,
+            };
+
+            await providerService.sendOutboundMessage(
+              outboundMessage,
+              {
+                tenantId: instance.tenantId,
+                instanceId: instance.id,
+              }
+            );
+            
+            console.log(`[UazapiWebhook] ✅ Mensagem ${i + 1} enviada com sucesso`);
+          }
+        } catch (err) {
+          console.error('[UazapiWebhook] Erro no processamento de auto-reply (background):', err);
+        }
+      })();
     }
   } catch (error) {
     console.error('[UazapiWebhook] Erro ao processar CALL_EVENT:', error);
