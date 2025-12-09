@@ -403,6 +403,20 @@ async function handleCallEvent(instance: any, body: any) {
       return;
     }
 
+    // IDEMPOTÊNCIA: Verificar se já processamos este CallID recentemente (60s)
+    if (callId) {
+      const lockKey = `lock:call_process:${callId}`;
+      const isNew = await redis.set(lockKey, '1', 'EX', 60, 'NX');
+      
+      if (!isNew) {
+        console.log(`[UazapiWebhook] ⚠️ CallID ${callId} já processado recentemente. Ignorando evento duplicado.`);
+        return;
+      }
+      console.log(`[UazapiWebhook] 🔒 Lock adquirido para CallID ${callId}`);
+    } else {
+      console.warn('[UazapiWebhook] ⚠️ Evento sem CallID, risco de processamento duplicado.');
+    }
+
     console.log('[UazapiWebhook] CALL_EVENT recebida de:', from);
 
     // Buscar behavior da instância
