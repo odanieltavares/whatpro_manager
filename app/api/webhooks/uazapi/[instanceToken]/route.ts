@@ -13,6 +13,7 @@ import { redis } from '@/lib/redis';
 import { RedisQueueService } from '@/lib/redis/redis-queue.service';
 import { RedisKeys } from '@/lib/redis/redis-keys';
 import { OutboundMessageDTO, QueueJob, Direction } from '@/lib/redis/types';
+import { configService } from '@/lib/config/env.config';
 
 // Tipos de eventos classificados
 enum UazapiEventKind {
@@ -50,14 +51,39 @@ export async function POST(
       eventType: body?.EventType,
     });
 
-    // 1. Resolver instância pelo token (com cache)
-    const instance = await resolveInstance(instanceToken);
+    // 1. Lógica para Token Global
+    let effectiveToken = instanceToken;
+    const globalToken = configService.get('AUTH')?.API_KEY?.GLOBAL;
+    const userGlobalToken = '8HYPx5hJLuNWHW8FC5QKhbCAYRTskPc36KDF5Fvugkn6QmVG9H'; // Token específico solicitado
+
+    if (instanceToken === globalToken || instanceToken === userGlobalToken) {
+      console.log('[UazapiWebhook] Recebido em Webhook Global/Admin');
+      
+      // Tentar descobrir a instância alvo pelo body
+      if (body?.token) {
+        effectiveToken = body.token;
+        console.log('[UazapiWebhook] Redirecionando para token do evento:', effectiveToken);
+      } else if (body?.instanceName) {
+        // Fallback: tentar buscar instância pelo nome (menos performático, mas útil)
+        console.log('[UazapiWebhook] Buscando instância pelo nome:', body.instanceName);
+        const found = await prisma.instance.findFirst({
+          where: { instanceIdentifier: body.instanceName }
+        });
+        if (found) {
+          effectiveToken = found.apiToken;
+        }
+      }
+    }
+
+    // 2. Resolver instância pelo token (efetivo)
+    const instance = await resolveInstance(effectiveToken);
 
     if (!instance) {
-      console.warn('[UazapiWebhook] Instância não encontrada:', instanceToken);
+      // Se não achou pelo token, loga erro mas retorna 200 para Uazapi não ficar tentando
+      console.warn('[UazapiWebhook] Instância não encontrada para token:', effectiveToken);
       return NextResponse.json(
-        { error: 'Instance not found' },
-        { status: 404 }
+        { error: 'Instance not found', effectiveToken },
+        { status: 404 } 
       );
     }
 
