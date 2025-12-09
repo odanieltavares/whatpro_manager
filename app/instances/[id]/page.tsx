@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, CheckCircle2, XCircle, Loader2, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, Loader2, Save, Trash2, Server } from 'lucide-react';
 import { instancesApi } from '@/lib/api/endpoints/instances';
 import type { Instance } from '@/lib/api/types/instance.types';
 import { toast } from 'sonner';
@@ -193,20 +193,38 @@ export default function InstanceDetailPage() {
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold">
-              {instance.instanceIdentifier || instance.name || 'Instância'}
-            </h1>
-            <p className="text-muted-foreground">{instance.provider.toUpperCase()}</p>
+          <div className="flex items-center justify-between flex-1">
+            <div className="flex items-center gap-3">
+              <Server className="w-8 h-8" />
+              <div>
+                <h1 className="text-3xl font-bold">
+                  {instance.instanceIdentifier || instance.name || 'Instância'}
+                </h1>
+                <p className="text-muted-foreground">{instance.provider.toUpperCase()}</p>
+              </div>
+            </div>
+            <Badge 
+              variant={
+                instance.status === 'connected' 
+                  ? 'default' 
+                  : instance.status === 'connecting'
+                  ? 'secondary'
+                  : 'destructive'
+              }
+              className={
+                instance.status === 'connecting' 
+                  ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
+                  : ''
+              }
+            >
+              {instance.status === 'connected' ? (
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+              ) : (
+                <XCircle className="w-3 h-3 mr-1" />
+              )}
+              {instance.status}
+            </Badge>
           </div>
-          <Badge variant={instance.status === 'connected' ? 'default' : 'destructive'}>
-            {instance.status === 'connected' ? (
-              <CheckCircle2 className="w-3 h-3 mr-1" />
-            ) : (
-              <XCircle className="w-3 h-3 mr-1" />
-            )}
-            {instance.status}
-          </Badge>
           <Button
             variant="destructive"
             size="sm"

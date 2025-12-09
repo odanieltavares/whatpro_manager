@@ -135,6 +135,8 @@ export default function InstancesPage() {
                   </div>
                   {instance.status === 'connected' ? (
                     <Wifi className="w-5 h-5 text-green-500" />
+                  ) : instance.status === 'connecting' ? (
+                    <Wifi className="w-5 h-5 text-yellow-500" />
                   ) : (
                     <WifiOff className="w-5 h-5 text-muted-foreground" />
                   )}
@@ -146,7 +148,13 @@ export default function InstancesPage() {
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Status:</span>
-                  <span className={instance.status === 'connected' ? 'text-green-500' : ''}>
+                  <span className={
+                    instance.status === 'connected' 
+                      ? 'text-green-500' 
+                      : instance.status === 'connecting'
+                      ? 'text-yellow-500'
+                      : ''
+                  }>
                     {instance.status}
                   </span>
                 </div>
