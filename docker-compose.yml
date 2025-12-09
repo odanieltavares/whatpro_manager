@@ -1,0 +1,95 @@
+version: "3.8"
+
+services:
+  # PostgreSQL with pgvector (production-ready)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: whatpro_postgres
+    environment:
+      - POSTGRES_USER=whatpro
+      - POSTGRES_PASSWORD=whatpro_secure_2024
+      - POSTGRES_DB=whatpro
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whatpro -d whatpro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1024M
+    restart: unless-stopped
+
+  # Redis (production config)
+  redis:
+    image: redis:7
+    container_name: whatpro_redis
+    command: ["redis-server", "--appendonly", "yes", "--port", "6379"]
+    ports:
+      - "6379:6379"
+    networks:
+      - app_network
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1024M
+    restart: unless-stopped
+
+  # PgAdmin (production config adapted for local)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: whatpro_pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=whatpro.adm@gmail.com
+      - PGADMIN_DEFAULT_PASSWORD=mysbvflnyfxohide
+      - PGADMIN_LISTEN_PORT=80
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - app_network
+    depends_on:
+      - postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: 256M
+    restart: unless-stopped
+
+  # Redis Commander (optional - for Redis management)
+  redis_commander:
+    image: rediscommander/redis-commander:latest
+    container_name: whatpro_redis_commander
+    environment:
+      - REDIS_HOSTS=local:whatpro_redis:6379
+    ports:
+      - "8081:8081"
+    networks:
+      - app_network
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local

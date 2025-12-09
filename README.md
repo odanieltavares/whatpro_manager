@@ -1,143 +1,127 @@
-# Whatpro Manager
+# WhatPro Manager
 
-Plataforma moderna para gerenciamento completo de instâncias WhatsApp via **Uazapi API**.
+Sistema de gerenciamento de instâncias WhatsApp para Evolution API e Uazapi.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+## 📚 Documentação
 
-## 🚀 Funcionalidades
+- **[Instalação](./docs/INSTALACAO.md)** - Setup inicial do projeto
+- **[Como Usar](./docs/COMO_USAR.md)** - Guia de uso diário
+- **[Produção](./docs/PRODUCAO.md)** - Deploy em produção
+- **[Comandos](./docs/COMANDOS.md)** - Referência rápida de comandos
 
-- ✅ **Gerenciamento de Instâncias WhatsApp** - Criar, conectar (QR Code/Paircode) e monitorar instâncias
-- ✅ **Envio de Mensagens** - Texto, mídia e documentos
-- ✅ **Webhooks** - Configuração e logs de eventos
-- ✅ **Integração Chatwoot** - Sincronização nativa de conversas
-- ✅ **UI Responsiva** - Sidebar colapsável (desktop) e menu mobile
-- ✅ **Tema Claro/Escuro** - Alternância com persistência de preferência
-- ✅ **TypeScript** - Type-safety completo
+## 🚀 Início Rápido
 
-## 🛠️ Stack Tecnológico
+### Pré-requisitos
+- Node.js 20.11.0+
+- Docker Desktop
+- Git
 
-- **Framework**: Next.js 14 (App Router)
-- **Linguagem**: TypeScript
-- **Estilização**: TailwindCSS 4
-- **Componentes**: shadcn/ui
-- **State**: Zustand
-- **HTTP Client**: Axios
-- **Ícones**: Lucide React
-- **Charts**: Recharts
-- **Notificações**: Sonner
-
-## 📦 Instalação
-
+### Instalação
 ```bash
-# Clone o repositório
-git clone https://github.com/seu-usuario/whatpro-manager.git
+# 1. Clonar repositório
+git clone <URL> whatpro_manager
+cd whatpro_manager
 
-# Entre na pasta
-cd whatpro-manager
-
-# Instale as dependências
+# 2. Instalar dependências
 npm install
 
-# Configure variáveis de ambiente (opcional)
+# 3. Configurar ambiente
 cp .env.example .env.local
+# Editar .env.local com suas configurações
 
-# Inicie o servidor de desenvolvimento
+# 4. Iniciar Docker
+docker-compose up -d
+
+# 5. Executar migrações
+npx prisma migrate dev
+
+# 6. Configurar providers
+npx tsx scripts/restore-providers.ts
+npm run update-tokens
+
+# 7. Sincronizar instâncias
+npm run sync
+
+# 8. Iniciar aplicação
 npm run dev
 ```
 
-Acesse: `http://localhost:3001`
+Acesse: **http://localhost:3001**
 
-## ⚙️ Configuração
-
-### 1. Admin Token
-
-1. Obtenha seu Admin Token do Uazapi
-2. Acesse **Configurações** no menu
-3. Cole o Admin Token e salve
-
-### 2. URL Base (Opcional)
-
-- Padrão: `https://free.uazapi.com`
-- Para servidor próprio: altere em Configurações
-
-### 3. Criar Primeira Instância
-
-1. Vá em **Instâncias**
-2. Clique em "Nova Instância"
-3. Escaneie o QR Code no WhatsApp
-
-## 🎨 Recursos Visuais
-
-- **Sidebar Responsiva**: Colapsável no desktop (64px ↔ 256px)
-- **Menu Mobile**: Overlay com backdrop
-- **Dark Mode**: Tema claro/escuro com animações suaves
-- **Componentes Modernos**: shadcn/ui com tema Neutral
-
-## 📝 Scripts Disponíveis
+## 📖 Comandos Principais
 
 ```bash
-npm run dev      # Desenvolvimento (porta 3001)
-npm run build    # Build para produção
-npm start        # Produção (porta 3001)
-npm run lint     # Lint
+# Desenvolvimento
+npm run dev                 # Iniciar servidor
+npm run sync               # Sincronizar instâncias
+npm run update-tokens      # Atualizar tokens providers
+
+# Banco de Dados
+npx prisma studio          # Interface visual
+npx prisma migrate dev     # Executar migrações
+
+# Docker
+docker-compose up -d       # Iniciar containers
+docker-compose down        # Parar containers
+docker ps                  # Ver containers rodando
+
+# Produção
+npm run build              # Build para produção
+npm start                  # Iniciar produção
+pm2 start ecosystem.config.js  # Iniciar com PM2
 ```
-
-## 🔐 Variáveis de Ambiente
-
-Crie um arquivo `.env.local`:
-
-```env
-NEXT_PUBLIC_UAZAPI_URL=https://free.uazapi.com
-NEXT_PUBLIC_UAZAPI_ADMIN_TOKEN=seu_token_aqui
-```
-
-> **Nota**: Você também pode configurar esses valores diretamente na UI em **Configurações**.
 
 ## 🏗️ Estrutura do Projeto
 
 ```
 whatpro_manager/
-├── app/
-│   ├── (pages)/          # Páginas da aplicação
-│   ├── layout.tsx        # Layout raiz
-│   └── page.tsx          # Dashboard
-├── components/
-│   ├── ui/               # Componentes shadcn/ui
-│   ├── sidebar.tsx       # Navegação lateral
-│   └── ...
-├── lib/
-│   ├── uazapi/           # Cliente API
-│   └── store/            # Zustand stores
-└── types/                # TypeScript types
+├── app/                   # Páginas e rotas Next.js
+├── components/            # Componentes React
+├── lib/                   # Bibliotecas e utilitários
+├── prisma/               # Schema e migrações
+├── scripts/              # Scripts utilitários
+├── docs/                 # Documentação
+└── docker-compose.yml    # Configuração Docker
 ```
 
-## 🤝 Contribuindo
+## 🔐 Segurança
 
-Contribuições são bem-vindas! Sinta-se livre para:
+- Tokens criptografados no banco de dados (AES-256-GCM)
+- Validação de variáveis de ambiente
+- Secrets fortes gerados automaticamente
+- Nunca commite `.env.local`
 
-1. Fazer fork do projeto
-2. Criar uma branch para sua feature (`git checkout -b feature/MinhaFeature`)
-3. Commit suas mudanças (`git commit -m 'Add: Minha feature'`)
-4. Push para a branch (`git push origin feature/MinhaFeature`)
-5. Abrir um Pull Request
+## 🛠️ Tecnologias
 
-## 📄 Licença
+- **Framework:** Next.js 16
+- **Banco de Dados:** PostgreSQL 15
+- **Cache:** Redis 7
+- **ORM:** Prisma
+- **UI:** React, TailwindCSS, shadcn/ui
+- **API Client:** Axios
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+## 📊 Features
 
-## 🙋 Suporte
+- ✅ Gerenciamento de instâncias WhatsApp
+- ✅ Suporte Evolution API e Uazapi
+- ✅ Sincronização automática
+- ✅ Interface intuitiva
+- ✅ Configurações por instância
+- ✅ Integração Chatwoot
+- ✅ QR Code e Paircode
+- ✅ Webhooks
 
-Para suporte, abra uma [issue](https://github.com/seu-usuario/whatpro-manager/issues) no GitHub.
+## 🆘 Suporte
 
-## 🔗 Links Úteis
+**Problemas?** Consulte:
+1. [Troubleshooting](./docs/COMO_USAR.md#problemas-comuns)
+2. [Comandos](./docs/COMANDOS.md#troubleshooting)
+3. Logs: `npm run dev` ou `pm2 logs`
 
-- [Documentação Uazapi](https://uazapi.com/docs)
-- [Next.js Docs](https://nextjs.org/docs)
-- [shadcn/ui](https://ui.shadcn.com)
+## 📝 Licença
 
----
+Proprietary - Uso interno WhatPro
 
-**Desenvolvido com ❤️ usando Next.js e TailwindCSS**
+## 👥 Equipe
+
+Desenvolvido por WhatPro Team

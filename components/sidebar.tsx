@@ -13,12 +13,15 @@ import {
   Send,
   ChevronLeft,
   X,
+  FileText,
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { UserMenu } from './user-menu'; // Added import
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Instâncias', href: '/instances', icon: Server },
+  { name: 'Execuções', href: '/executions', icon: FileText },
   { name: 'Mensagens', href: '/messages', icon: Send },
   { name: 'Webhooks', href: '/webhooks', icon: Webhook },
   { name: 'Chatwoot', href: '/chatwoot', icon: MessageSquare },
@@ -127,16 +130,8 @@ export function Sidebar() {
         )}
 
         {/* Footer */}
-        <div className={cn('border-t p-4', isCollapsed && 'lg:hidden')}>
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-semibold text-primary">AD</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Admin</p>
-              <p className="text-xs text-muted-foreground truncate">admin@whatpro.com</p>
-            </div>
-          </div>
+        <div className={cn('p-2', isCollapsed && 'lg:p-1')}>
+          <UserMenu />
         </div>
       </div>
     </>

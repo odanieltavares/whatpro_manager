@@ -1,210 +1,183 @@
+/**
+ * Instances Page (Simplified - No Auth)
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Plus, QrCode, Trash2, RefreshCw, Wifi, WifiOff, Server } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Plus, Server, Wifi, WifiOff, Loader2, RefreshCcw } from 'lucide-react';
+import { instancesApi } from '@/lib/api/endpoints/instances';
+import type { Instance } from '@/lib/api/types/instance.types';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { UazapiInstance } from '@/types/uazapi';
+import { CreateInstanceDialog } from '@/components/create-instance-dialog';
 
 export default function InstancesPage() {
-  const [instances, setInstances] = useState<UazapiInstance[]>([]);
+  const router = useRouter();
+  const [instances, setInstances] = useState<Instance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showQRDialog, setShowQRDialog] = useState(false);
-  const [selectedInstance, setSelectedInstance] = useState<UazapiInstance | null>(null);
-  const [instanceName, setInstanceName] = useState('');
-  const [qrCode, setQRCode] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleCreateInstance = async () => {
-    if (!instanceName.trim()) {
-      toast.error('Digite um nome para a instância');
-      return;
-    }
-
-    setLoading(true);
+  const loadInstances = async () => {
     try {
-      // Simulação - você substituirá pela chamada real da API
-      const newInstance: UazapiInstance = {
-        id: Math.random().toString(36).substring(7),
-        token: Math.random().toString(36).substring(7),
-        status: 'disconnected',
-        name: instanceName,
-      };
-
-      setInstances([...instances, newInstance]);
-      setShowCreateDialog(false);
-      setInstanceName('');
-      toast.success('Instância criada com sucesso!');
-      
-      // Mostrar QR Code
-      setSelectedInstance(newInstance);
-      setQRCode('https://via.placeholder.com/300?text=QR+Code');
-      setShowQRDialog(true);
-    } catch (error) {
-      toast.error('Erro ao criar instância');
+      setLoading(true);
+      const data = await instancesApi.list();
+      setInstances(data || []); // Ensure we always have an array
+    } catch (error: unknown) {
+      console.error('Failed to load instances:', error);
+      setInstances([]); // Set empty array on error to prevent undefined
+      toast.error('Erro ao carregar instâncias. Verifique se o banco de dados está rodando.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteInstance = async (instance: UazapiInstance) => {
+  useEffect(() => {
+    loadInstances();
+  }, []);
+
+  const handleInstanceCreated = () => {
+    setShowCreateDialog(false);
+    loadInstances();
+  };
+
+  const handleSyncInstances = async () => {
     try {
-      setInstances(instances.filter((i) => i.id !== instance.id));
-      toast.success('Instância removida');
-    } catch (error) {
-      toast.error('Erro ao remover instância');
+      setSyncing(true);
+      // Note: This endpoint needs to be added to instancesApi or a separate sync API
+      const response = await fetch('/api/sync-raw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await response.json();
+      await loadInstances();
+      toast.success(
+        `Sincronizado: ${result.created} criadas, ${result.updated} atualizadas, ${result.removed} removidas`
+      );
+      if (result.errors && result.errors.length > 0) {
+        toast.error(`Erros na sync: ${result.errors.join('; ')}`);
+      }
+    } catch (error: unknown) {
+      console.error('Failed to sync instances:', error);
+      toast.error('Erro ao sincronizar instâncias');
+    } finally {
+      setSyncing(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Instâncias</h1>
-          <p className="text-muted-foreground">Gerencie suas instâncias WhatsApp</p>
+          <h1 className="text-3xl font-bold">Instâncias</h1>
+          <p className="text-muted-foreground">
+            Gerencie suas instâncias WhatsApp
+          </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Instância
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleSyncInstances} disabled={syncing}>
+            {syncing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCcw className="w-4 h-4 mr-2" />
+            )}
+            Sincronizar
+          </Button>
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Instância
+          </Button>
+        </div>
       </div>
 
-      {instances.length === 0 ? (
-        <Card className="p-12">
-          <div className="flex flex-col items-center justify-center text-center space-y-4">
-            <div className="rounded-full bg-muted p-4">
-              <Server className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Nenhuma instância criada</h3>
-              <p className="text-sm text-muted-foreground">
-                Crie sua primeira instância para começar a usar o WhatsApp
-              </p>
-            </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Carregando instâncias...</span>
+        </div>
+      ) : !instances || instances.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Server className="w-12 h-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhuma instância encontrada</h3>
+            <p className="text-sm text-muted-foreground mb-4 text-center max-w-md">
+              {!instances
+                ? 'Erro ao carregar instâncias. Verifique se o banco de dados está rodando.'
+                : 'Crie sua primeira instância para começar a usar o WhatPro Manager.'
+              }
+            </p>
             <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Criar Primeira Instância
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Instância
             </Button>
-          </div>
+          </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {instances.map((instance) => (
-            <Card key={instance.id} className="p-6">
-              <div className="space-y-4">
+            <Card key={instance.id} className="cursor-pointer hover:shadow-lg transition-shadow">
+              <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold">{instance.name}</h3>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      {instance.id}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <Server className="w-5 h-5" />
+                    <CardTitle className="text-lg">{instance.instanceIdentifier}</CardTitle>
                   </div>
-                  <Badge variant={instance.status === 'connected' ? 'default' : 'secondary'}>
-                    {instance.status === 'connected' ? (
-                      <Wifi className="mr-1 h-3 w-3" />
-                    ) : (
-                      <WifiOff className="mr-1 h-3 w-3" />
-                    )}
-                    {instance.status}
-                  </Badge>
+                  {instance.status === 'connected' ? (
+                    <Wifi className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <WifiOff className="w-5 h-5 text-muted-foreground" />
+                  )}
                 </div>
-
+                <CardDescription>
+                  {instance.provider.toUpperCase()}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className={instance.status === 'connected' ? 'text-green-500' : ''}>
+                    {instance.status}
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     className="flex-1"
-                    onClick={() => {
-                      setSelectedInstance(instance);
-                      setQRCode('https://via.placeholder.com/300?text=QR+Code');
-                      setShowQRDialog(true);
-                    }}
+                    onClick={() => router.push(`/instances/${instance.id}`)}
                   >
-                    <QrCode className="mr-2 h-4 w-4" />
-                    QR Code
+                    Configurar
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDeleteInstance(instance)}
+                    onClick={() => router.push(`/instances/${instance.id}?tab=connection`)}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    Ver QR
                   </Button>
                 </div>
-              </div>
+              </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nova Instância</DialogTitle>
-            <DialogDescription>
-              Crie uma nova instância WhatsApp
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome da Instância</Label>
-              <Input
-                id="name"
-                placeholder="Ex: Atendimento Principal"
-                value={instanceName}
-                onChange={(e) => setInstanceName(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowCreateDialog(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={handleCreateInstance}
-                disabled={loading}
-              >
-                {loading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Criar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* QR Code Dialog */}
-      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Conectar WhatsApp</DialogTitle>
-            <DialogDescription>
-              Escaneie o QR Code com o aplicativo do WhatsApp
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center space-y-4">
-            <div className="rounded-lg border p-4 bg-white">
-              <img
-                src={qrCode}
-                alt="QR Code"
-                className="h-64 w-64"
-              />
-            </div>
-            <p className="text-sm text-muted-foreground text-center">
-              Abra o WhatsApp → Aparelhos conectados → Conectar um aparelho
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CreateInstanceDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onSuccess={handleInstanceCreated}
+      />
     </div>
   );
 }

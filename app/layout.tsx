@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Toaster } from "@/components/ui/sonner";
 import { useSidebar } from "@/lib/store/sidebar";
 import { cn } from "@/lib/utils";
+import { QueryProvider } from "@/components/providers/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,7 +25,9 @@ export default function RootLayout({
         <meta name="description" content="Plataforma moderna para gerenciamento de instâncias WhatsApp via Uazapi" />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-        <LayoutContent>{children}</LayoutContent>
+        <QueryProvider>
+          <LayoutContent>{children}</LayoutContent>
+        </QueryProvider>
         <Toaster />
       </body>
     </html>

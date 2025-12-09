@@ -1,0 +1,358 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================================
+// CORE MODELS - Multi-Tenant Structure
+// ========================================
+
+model Tenant {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  status        String   @default("active") // active, suspended, cancelled
+  planId        String?  @map("plan_id")
+  billingStatus String?  @map("billing_status") // trial, active, past_due, cancelled
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users                  TenantUser[]
+  projects               Project[]
+  instances              Instance[]
+  chatwootIntegrations   ChatwootIntegration[]
+  chatwootInboxes        ChatwootInbox[]
+  instanceChatwootConfigs InstanceChatwootConfig[]
+  messageMappings        MessageMapping[]
+  execucoesEventos       ExecucaoEvento[]
+  webhookConfigs         WebhookConfig[]
+  logsResumidos         LogResumido[]
+  auditLogs             AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenants   TenantUser[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model TenantUser {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  role      String   // admin, manager, agent
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@map("tenant_users")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  type        String?  // paroquia, oficina, ecommerce, etc
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  instances               Instance[]
+  chatwootInboxes         ChatwootInbox[]
+  instanceChatwootConfigs InstanceChatwootConfig[]
+  messageMappings         MessageMapping[]
+
+  @@map("projects")
+}
+
+// ========================================
+// WHATSAPP PROVIDERS
+// ========================================
+
+model ProviderConfig {
+  id          String   @id @default(uuid())
+  provider    String   // "UAZAPI" | "EVOLUTION"
+  baseUrl     String   @map("base_url")
+  adminToken  String   @map("admin_token") // ENCRYPTED - Admin token or Global API Key
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, baseUrl])
+  @@map("provider_configs")
+}
+
+// ========================================
+// WHATSAPP INSTANCES
+// ========================================
+
+model Instance {
+  id                 String   @id @default(uuid())
+  tenantId           String   @map("tenant_id")
+  projectId          String?  @map("project_id")
+  provider           String   // UAZAPI, EVOLUTION
+  instanceIdentifier String   @map("instance_identifier")
+  status             String   @default("disconnected") // connected, disconnected, connecting
+  baseUrl            String   @map("base_url")
+  apiToken           String   @map("api_token") // ENCRYPTED - Instance token
+  
+  // Instance Metadata
+  profileName        String?  @map("profile_name")
+  profilePicUrl      String?  @map("profile_pic_url")
+  phoneNumber        String?  @map("phone_number")
+  isBusiness         Boolean  @default(false) @map("is_business")
+  
+  // UAZ API specific fields
+  systemName         String?  @map("system_name")
+  owner              String?  @map("owner")
+  adminField01       String?  @map("admin_field_01")
+  adminField02       String?  @map("admin_field_02")
+  
+  // Evolution API specific fields
+  ownerJid           String?  @map("owner_jid")
+  integration        String?  @map("integration") // "WHATSAPP-BAILEYS"
+  businessId         String?  @map("business_id")
+  
+  // Tracking
+  lastDisconnect     DateTime? @map("last_disconnect")
+  lastDisconnectReason String? @map("last_disconnect_reason")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project                Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  behavior               InstanceBehavior?
+  chatwootInboxes        ChatwootInbox[]
+  instanceChatwootConfig InstanceChatwootConfig?
+  messageMappings        MessageMapping[]
+  execucoesEventos       ExecucaoEvento[]
+  webhookConfigs         WebhookConfig[]
+
+  @@unique([tenantId, instanceIdentifier])
+  @@map("instances")
+}
+
+model InstanceBehavior {
+  id                       String   @id @default(uuid())
+  instanceId               String   @unique @map("instance_id")
+  rejectCall               Boolean  @default(false) @map("reject_call")
+  msgCall                  String?  @map("msg_call")
+  groupsIgnore             Boolean  @default(false) @map("groups_ignore")
+  alwaysOnline             Boolean  @default(false) @map("always_online")
+  readMessages             Boolean  @default(false) @map("read_messages")
+  readStatus               Boolean  @default(false) @map("read_status")
+  syncFullHistory          Boolean  @default(false) @map("sync_full_history")
+  autoRejectCalls          Boolean  @default(false) @map("auto_reject_calls")
+  autoReplyCallsEnabled    Boolean  @default(false) @map("auto_reply_calls_enabled")
+  autoReplyCallsMessages   Json?    @map("auto_reply_calls_messages") // [{order:1,text:"..."},{order:2,text:"..."}]
+  autoReplyCallsDelays     Json?    @map("auto_reply_calls_delays") // [0, 5, 30] segundos entre mensagens
+  timezone                 String   @default("America/Sao_Paulo")
+  proxyConfig              Json?    @map("proxy_config")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@map("instance_behavior")
+}
+
+// ========================================
+// CHATWOOT INTEGRATION
+// ========================================
+
+model ChatwootIntegration {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  baseUrl        String   @map("base_url")
+  accountId      Int      @map("account_id")
+  apiAccessToken String   @map("api_access_token") // ENCRYPTED
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatwootInboxes ChatwootInbox[]
+
+  @@unique([tenantId, accountId])
+  @@map("chatwoot_integrations")
+}
+
+model ChatwootInbox {
+  id                     String   @id @default(uuid())
+  tenantId               String   @map("tenant_id")
+  projectId              String?  @map("project_id")
+  instanceId             String?  @map("instance_id")
+  chatwootIntegrationId  String   @map("chatwoot_integration_id")
+  chatwootInboxId        Int      @map("chatwoot_inbox_id")
+  defaultAssignee        Int?     @map("default_assignee")
+  autoCreateContacts     Boolean  @default(true) @map("auto_create_contacts")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project             Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  instance            Instance?           @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  chatwootIntegration ChatwootIntegration @relation(fields: [chatwootIntegrationId], references: [id], onDelete: Cascade)
+
+  @@map("chatwoot_inboxes")
+}
+
+// Bridge table (auxiliary) - usado pelo código legado
+model InstanceChatwootConfig {
+  id                  String   @id @default(uuid())
+  tenantId            String   @map("tenant_id")
+  projectId           String?  @map("project_id")
+  instanceId          String   @unique @map("instance_id")
+  instanceName        String?  @map("instance_name")
+  instanceToken       String?  @map("instance_token") // pode ser redundante
+  instanceUrl         String?  @map("instance_url")
+  chatwootAccountId   Int?     @map("chatwoot_account_id")
+  chatwootUrl         String?  @map("chatwoot_url")
+  chatwootUserToken   String?  @map("chatwoot_user_token") // ENCRYPTED
+  inboxId             Int?     @map("inbox_id")
+  inboxStatus         String?  @map("inbox_status")
+  logInbox            Boolean  @default(false) @map("log_inbox")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project? @relation(fields: [projectId], references: [id])
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@map("instance_chatwoot_config")
+}
+
+// ========================================
+// MESSAGE PROCESSING & LOGS
+// ========================================
+
+model MessageMapping {
+  id                 String   @id @default(uuid())
+  tenantId           String   @map("tenant_id")
+  projectId          String?  @map("project_id")
+  instanceId         String   @map("instance_id")
+  direction          String   // wa_to_cw, cw_to_wa
+  chatwootMessageId  Int?     @map("chatwoot_message_id")
+  waMessageId        String?  @map("wa_message_id") // id_with_owner
+  stanzaId           String?  @map("stanza_id")
+  messageType        String?  @map("message_type")
+  queueKey           String?  @map("queue_key")
+  lockKey            String?  @map("lock_key")
+  status             String   @default("sent") // sent, delivered, read, error
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  project  Project? @relation(fields: [projectId], references: [id])
+  instance Instance @relation(fields: [instanceId], references: [id])
+
+  @@index([chatwootMessageId])
+  @@index([waMessageId])
+  @@index([tenantId, instanceId])
+  @@map("message_mappings")
+}
+
+model ExecucaoEvento {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  direction       String?  // wa_to_cw, cw_to_wa
+  instanceId      String?  @map("instance_id")
+  contactId       String?  @map("contact_id")
+  queueKey        String?  @map("queue_key")
+  retries         Int      @default(0)
+  statusFinal     String?  @map("status_final") // success, retry, error, dlq
+  erroResumido    String?  @map("erro_resumido")
+  payloadResumido Json?    @map("payload_resumido")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  instance Instance? @relation(fields: [instanceId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("execucoes_eventos")
+}
+
+model WebhookConfig {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  instanceId String?  @map("instance_id")
+  webhookUrl String   @map("webhook_url")
+  events     Json?    // ["message", "message.status", "connection", "qrcode"]
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  instance Instance? @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_configs")
+}
+
+model LogResumido {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  level     String   // error, warn, info
+  message   String
+  context   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, level, createdAt(sort: Desc)])
+  @@map("logs_resumidos")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  userId       String?  @map("user_id")
+  action       String   // create_instance, delete_instance, update_config
+  resourceType String?  @map("resource_type") // instance, project, config
+  resourceId   String?  @map("resource_id")
+  changes      Json?
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}

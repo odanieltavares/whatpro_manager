@@ -1,0 +1,194 @@
+/**
+ * WhatsAppProviderService - Abstração para providers (Uazapi/Evolution)
+ * 
+ * Baseado em: whatpro-hub-nucleo-motor-redis-retry-dlq.md
+ */
+
+import { prisma } from '@/lib/prisma';
+import { UazapiProvider } from '@/lib/providers/uazapi.provider';
+import { OutboundMessageDTO, ProviderSendResult, ProviderContext } from '@/lib/redis/types';
+
+/**
+ * Adapter para Uazapi Provider
+ */
+class UazapiProviderAdapter {
+  private client: UazapiProvider;
+  private instanceToken: string;
+
+  constructor(baseUrl: string, instanceToken: string) {
+    this.instanceToken = instanceToken;
+    this.client = new UazapiProvider({ baseUrl, instanceToken });
+  }
+
+  async sendText(dto: OutboundMessageDTO): Promise<ProviderSendResult> {
+    const response = await this.client.sendText({
+      phone: dto.number,
+      text: dto.text || '',
+      quoted: dto.replyToWaMessageId || undefined,
+    });
+
+    if (!response.success) {
+      throw new Error(response.error || 'Erro ao enviar mensagem');
+    }
+
+    return {
+      waMessageId: response.messageid || '',
+      stanzaId: undefined,
+    };
+  }
+
+  async sendMedia(dto: OutboundMessageDTO): Promise<ProviderSendResult> {
+    if (!dto.mediaUrl) {
+      throw new Error('mediaUrl é obrigatório para mensagens de mídia');
+    }
+
+    let response;
+
+    if (dto.type === 'image') {
+      response = await this.client.sendImage({
+        phone: dto.number,
+        mediaUrl: dto.mediaUrl,
+        caption: dto.caption,
+      });
+    } else if (dto.type === 'video') {
+      response = await this.client.sendVideo({
+        phone: dto.number,
+        mediaUrl: dto.mediaUrl,
+        caption: dto.caption,
+      });
+    } else if (dto.type === 'audio') {
+      response = await this.client.sendAudio({
+        phone: dto.number,
+        mediaUrl: dto.mediaUrl,
+      });
+    } else if (dto.type === 'document') {
+      response = await this.client.sendDocument({
+        phone: dto.number,
+        mediaUrl: dto.mediaUrl,
+        caption: dto.caption,
+        mimetype: dto.mimetype,
+        filename: dto.filename,
+      });
+    } else {
+      throw new Error(`Tipo de mídia não suportado: ${dto.type}`);
+    }
+
+    if (!response.success) {
+      throw new Error(response.error || 'Erro ao enviar mídia');
+    }
+
+    return {
+      waMessageId: response.messageid || '',
+      stanzaId: undefined,
+    };
+  }
+
+  async sendReaction(dto: OutboundMessageDTO): Promise<ProviderSendResult> {
+    if (!dto.reactionEmoji || !dto.replyToWaMessageId) {
+      throw new Error('reactionEmoji e replyToWaMessageId são obrigatórios');
+    }
+
+    const response = await this.client.sendReaction(
+      dto.number,
+      dto.replyToWaMessageId,
+      dto.reactionEmoji
+    );
+
+    if (!response.success) {
+      throw new Error(response.error || 'Erro ao enviar reação');
+    }
+
+    return {
+      waMessageId: response.messageid || '',
+      stanzaId: undefined,
+    };
+  }
+
+  async deleteMessage(waMessageId: string, number: string): Promise<void> {
+    const result = await this.client.deleteMessage(number, waMessageId);
+    if (!result.success) {
+      throw new Error('Erro ao deletar mensagem');
+    }
+  }
+
+  async callReject(params: { number: string; callId: string }): Promise<void> {
+    const result = await this.client.rejectCall(params.number, params.callId, this.instanceToken);
+    if (!result.success) {
+      throw new Error(result.message || 'Erro ao rejeitar chamada');
+    }
+  }
+}
+
+export class WhatsAppProviderService {
+  /**
+   * Resolver client do provider baseado no instanceId
+   */
+  private async resolveClient(instanceId: string) {
+    const instance = await prisma.instance.findUnique({
+      where: { id: instanceId },
+    });
+
+    if (!instance) {
+      throw new Error(`Instância não encontrada: ${instanceId}`);
+    }
+
+    const provider = instance.provider.toLowerCase();
+
+    if (provider === 'uazapi') {
+      return new UazapiProviderAdapter(
+        instance.baseUrl,
+        instance.apiToken || ''
+      );
+    }
+
+    if (provider === 'evolution') {
+      // TODO: Implementar EvolutionProvider
+      throw new Error('EvolutionProvider ainda não implementado');
+    }
+
+    throw new Error(`Provider desconhecido: ${instance.provider}`);
+  }
+
+  /**
+   * Enviar mensagem outbound (CW → WA)
+   */
+  async sendOutboundMessage(
+    dto: OutboundMessageDTO,
+    ctx: ProviderContext
+  ): Promise<ProviderSendResult> {
+    const client = await this.resolveClient(ctx.instanceId);
+
+    console.log('[WhatsAppProviderService] Enviando mensagem:', {
+      type: dto.type,
+      number: dto.number,
+      instanceId: ctx.instanceId,
+    });
+
+    if (dto.type === 'text') {
+      return await client.sendText(dto);
+    }
+
+    if (dto.type === 'reaction') {
+      return await client.sendReaction(dto);
+    }
+
+    // Tipos de mídia: image, audio, video, document
+    return await client.sendMedia(dto);
+  }
+
+  /**
+   * Deletar mensagem
+   */
+  async deleteMessage(instanceId: string, waMessageId: string, number: string): Promise<void> {
+    const client = await this.resolveClient(instanceId);
+    await client.deleteMessage(waMessageId, number);
+  }
+
+  /**
+   * Rejeitar chamada
+   */
+  async callReject(instanceId: string, number: string, callId: string): Promise<void> {
+    const client = await this.resolveClient(instanceId);
+    await client.callReject({ number, callId });
+  }
+}

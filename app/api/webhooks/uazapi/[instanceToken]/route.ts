@@ -1,0 +1,435 @@
+/**
+ * Webhook Uazapi (WhatsApp → Chatwoot)
+ * 
+ * Endpoint: POST /api/webhooks/uazapi/[instanceToken]
+ * 
+ * Baseado em: whatpro-hub-bridge-whatsapp-chatwoot.md
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
+import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
+import { RedisQueueService } from '@/lib/redis/redis-queue.service';
+import { RedisKeys } from '@/lib/redis/redis-keys';
+import { QueueJob, Direction } from '@/lib/redis/types';
+
+// Tipos de eventos classificados
+enum UazapiEventKind {
+  INCOMING_MESSAGE = 'INCOMING_MESSAGE',
+  MESSAGE_UPDATE = 'MESSAGE_UPDATE',
+  CALL_EVENT = 'CALL_EVENT',
+  DISCARD = 'DISCARD',
+}
+
+interface NormalizedIncomingMessage {
+  tenantId: string;
+  projectId: string | null;
+  instanceId: string;
+  fromMe: boolean;
+  isGroup: boolean;
+  waMessageId: string;
+  stanzaId: string | null;
+  chatId: string;
+  type: string;
+  text: string | null;
+  mediaUrl: string | null;
+  raw: any;
+}
+
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ instanceToken: string }> }
+) {
+  try {
+    const { instanceToken } = await context.params;
+    const body = await request.json();
+
+    console.log('[UazapiWebhook] Recebido:', {
+      instanceToken,
+      eventType: body?.EventType,
+    });
+
+    // 1. Resolver instância pelo token (com cache)
+    const instance = await resolveInstance(instanceToken);
+
+    if (!instance) {
+      console.warn('[UazapiWebhook] Instância não encontrada:', instanceToken);
+      return NextResponse.json(
+        { error: 'Instance not found' },
+        { status: 404 }
+      );
+    }
+
+    // 2. Classificar evento
+    const eventKind = classifyEvent(body);
+
+    console.log('[UazapiWebhook] Evento classificado:', eventKind);
+
+    if (eventKind === UazapiEventKind.DISCARD) {
+      // Evento irrelevante, apenas loga
+      return NextResponse.json({ ok: true, action: 'discarded' });
+    }
+
+    // 3. Tratar por tipo
+    if (eventKind === UazapiEventKind.INCOMING_MESSAGE) {
+      await handleIncomingMessage(instance, body);
+    } else if (eventKind === UazapiEventKind.MESSAGE_UPDATE) {
+      await handleMessageUpdate(instance, body);
+    } else if (eventKind === UazapiEventKind.CALL_EVENT) {
+      await handleCallEvent(instance, body);
+    }
+
+    // Processar mensagem (se necessário)
+    // TODO: Reativar quando WhatsAppProviderService estiver implementado
+    // const whatsappService = new WhatsAppProviderService();
+    // await whatsappService.processInboundMessage(...)
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('[Uazapi Webhook] Error:', error);
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// ========================================
+// RESOLVER INSTÂNCIA (com cache)
+// ========================================
+
+async function resolveInstance(instanceToken: string) {
+  const cacheKey = RedisKeys.cacheInstanceByToken(instanceToken);
+
+  // Tentar cache primeiro (TTL: 30 dias)
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  // Buscar no banco
+  const instance = await prisma.instance.findFirst({
+    where: {
+      apiToken: instanceToken,
+      status: 'connected',
+    },
+    include: {
+      instanceChatwootConfig: true,
+    },
+  });
+
+  if (instance) {
+    // Salvar no cache
+    await redis.set(
+      cacheKey,
+      JSON.stringify(instance),
+      'EX',
+      30 * 24 * 60 * 60 // 30 dias
+    );
+  }
+
+  return instance;
+}
+
+// ========================================
+// CLASSIFICAR EVENTO
+// ========================================
+
+function classifyEvent(body: any): UazapiEventKind {
+  const eventType = body?.EventType;
+  const updateType = body?.update?.eventType;
+
+  // Mensagens novas de usuário
+  if (eventType === 'messages' && body?.message) {
+    const wasSentByApi = body.message.wasSentByApi === true;
+    if (!wasSentByApi) {
+      return UazapiEventKind.INCOMING_MESSAGE;
+    }
+  }
+
+  // Atualizações de status de mensagem
+  if (eventType === 'messages.update' || updateType === 'messageStatus') {
+    // Descartar certos tipos
+    const state = body?.state;
+    const discardStates = [
+      'played-self',
+      'inactive',
+      'sender',
+      'peer_msg',
+      'retry',
+      'FileDownloaded',
+    ];
+
+    if (discardStates.includes(state)) {
+      return UazapiEventKind.DISCARD;
+    }
+
+    return UazapiEventKind.MESSAGE_UPDATE;
+  }
+
+  // Chamadas
+  if (eventType === 'call' || eventType === 'voip') {
+    return UazapiEventKind.CALL_EVENT;
+  }
+
+  // Presença (ignorar por enquanto)
+  if (eventType === 'presence') {
+    return UazapiEventKind.DISCARD;
+  }
+
+  // Outros eventos: descartar
+  return UazapiEventKind.DISCARD;
+}
+
+// ========================================
+// HANDLE INCOMING MESSAGE
+// ========================================
+
+async function handleIncomingMessage(instance: any, body: any) {
+  const queueService = new RedisQueueService(redis);
+
+  // Normalizar mensagem
+  const normalized = normalizeIncomingMessage(instance, body);
+
+  console.log('[UazapiWebhook] Mensagem normalizada:', {
+    chatId: normalized.chatId,
+    type: normalized.type,
+    fromMe: normalized.fromMe,
+    isGroup: normalized.isGroup,
+  });
+
+  // Se for grupo e groupsIgnore = true, descartar
+  if (normalized.isGroup) {
+    // TODO: verificar instance_behavior.groupsIgnore
+    // Por enquanto, aceita grupos
+  }
+
+  // Se fromMe = true (mensagem enviada pelo próprio número), pode descartar
+  if (normalized.fromMe) {
+    console.log('[UazapiWebhook] Mensagem fromMe, descartando');
+    return;
+  }
+
+  // Criar job para fila wa_to_cw
+  const contactKey = normalized.chatId; // Ex: "5511999999999@c.us"
+
+  const queueKey = RedisKeys.waToCwQueue(
+    normalized.tenantId,
+    normalized.instanceId,
+    contactKey
+  );
+
+  const lockKey = RedisKeys.waToCwLock(
+    normalized.tenantId,
+    normalized.instanceId,
+    contactKey
+  );
+
+  const job: QueueJob = {
+    jobId: uuidv4(),
+    direction: 'wa_to_cw' as Direction,
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+
+    tenantId: normalized.tenantId,
+    projectId: normalized.projectId || '',
+    instanceId: normalized.instanceId,
+
+    // Campos específicos (serão usados pelo worker)
+    chatwootAccountId: instance.instanceChatwootConfig?.chatwootAccountId || 0,
+    inboxId: instance.instanceChatwootConfig?.inboxId || 0,
+    conversationId: 0, // Será determinado pelo worker
+    contactKey,
+
+    message: {
+      type: 'text', // Simplificado por enquanto
+      number: contactKey.split('@')[0], // Remove o @c.us
+      text: normalized.text || '',
+    },
+
+    queueKey,
+    lockKey,
+  };
+
+  // Enfileirar e tentar adquirir lock
+  const lockAcquired = await queueService.enqueueAndTryLock(
+    queueKey,
+    lockKey,
+    job,
+    30 // TTL do lock: 30s
+  );
+
+  if (lockAcquired) {
+    console.log('[UazapiWebhook] Lock adquirido, worker pode processar');
+    // TODO: Disparar worker (via scheduling ou trigger)
+  }
+
+  console.log('[UazapiWebhook] Mensagem enfileirada:', queueKey);
+}
+
+// ========================================
+// NORMALIZAR MENSAGEM
+// ========================================
+
+function normalizeIncomingMessage(
+  instance: any,
+  body: any
+): NormalizedIncomingMessage {
+  const msg = body.message || body?.messages?.[0] || {};
+
+  return {
+    tenantId: instance.tenantId,
+    projectId: instance.projectId,
+    instanceId: instance.id,
+    fromMe: msg.fromMe === true,
+    isGroup: msg.isGroup === true,
+    waMessageId: msg.id_with_owner || msg.id || '',
+    stanzaId: msg.stanza_id || null,
+    chatId: msg.chatId || msg.from || msg.to || '',
+    type: msg.type || 'chat',
+    text: msg.body || msg.text || msg.caption || null,
+    mediaUrl: msg.mediaUrl || null,
+    raw: body,
+  };
+}
+
+// ========================================
+// HANDLE MESSAGE UPDATE
+// ========================================
+
+async function handleMessageUpdate(instance: any, body: any) {
+  try {
+    const update = body?.update || {};
+    const state = body?.state || update?.status;
+    
+    // Extrair messageId
+    const msg = body?.message || body?.messages?.[0] || update?.message || {};
+    const waMessageId = msg.id_with_owner || msg.id || update?.key?.id;
+
+    if (!waMessageId) {
+      console.warn('[UazapiWebhook] MESSAGE_UPDATE sem messageId');
+      return;
+    }
+
+    console.log('[UazapiWebhook] MESSAGE_UPDATE:', {
+      waMessageId,
+      state,
+    });
+
+    // Mapear states do Uazapi para nosso status
+    let newStatus: string | null = null;
+
+    if (state === 'sent' || state === 'server_ack') {
+      newStatus = 'sent';
+    } else if (state === 'delivered') {
+      newStatus = 'delivered';
+    } else if (state === 'read' || state === 'played') {
+      newStatus = 'read';
+    } else if (state === 'error' || state === 'failed') {
+      newStatus = 'error';
+    }
+
+    if (!newStatus) {
+      // State não relevante, ignorar
+      return;
+    }
+
+    // Buscar mapping pelo waMessageId
+    const mapping = await prisma.messageMapping.findFirst({
+      where: {
+        waMessageId,
+        instanceId: instance.id,
+      },
+    });
+
+    if (!mapping) {
+      console.warn('[UazapiWebhook] Mapping não encontrado para:', waMessageId);
+      return;
+    }
+
+    // Atualizar status
+    await prisma.messageMapping.update({
+      where: { id: mapping.id },
+      data: {
+        status: newStatus,
+        updatedAt: new Date(),
+      },
+    });
+
+    console.log('[UazapiWebhook] Status atualizado:', {
+      waMessageId,
+      oldStatus: mapping.status,
+      newStatus,
+    });
+  } catch (error) {
+    console.error('[UazapiWebhook] Erro ao processar MESSAGE_UPDATE:', error);
+  }
+}
+
+// ========================================
+// HANDLE CALL EVENT
+// ========================================
+
+async function handleCallEvent(instance: any, body: any) {
+  try {
+    const callData = body?.data || body;
+    const from = callData?.from || callData?.caller;
+    const callId = callData?.id || callData?.callId;
+
+    if (!from) {
+      console.warn('[UazapiWebhook] CALL_EVENT sem origem');
+      return;
+    }
+
+    console.log('[UazapiWebhook] CALL_EVENT recebida de:', from);
+
+    // Buscar behavior da instância
+    const behavior = await prisma.instanceBehavior.findUnique({
+      where: { instanceId: instance.id },
+    });
+
+    if (!behavior || !behavior.autoRejectCalls) {
+      console.log('[UazapiWebhook] CallReject desabilitado para instância');
+      return;
+    }
+
+    console.log('[UazapiWebhook] CallReject habilitado, rejeitando chamada');
+
+    // Rejeitar chamada via provider
+    // TODO: Reativar quando WhatsAppProviderService estiver implementado
+    // const { WhatsAppProviderService } = await import('@/lib/whatsapp/whatsapp-provider.service');
+    // const providerService = new WhatsAppProviderService();
+
+    // try {
+    //   await providerService.callReject(instance.id, from, callId);
+    //   console.log('[UazapiWebhook] Chamada rejeitada');
+    // } catch (error) {
+    //   console.error('[UazapiWebhook] Erro ao rejeitar chamada:', error);
+    // }
+
+    console.log('[UazapiWebhook] CallReject temporariamente desabilitado (WhatsAppProviderService não implementado)');
+
+    // Se auto-reply habilitado, enfileirar mensagens
+    if (behavior.autoReplyCallsEnabled && behavior.autoReplyCallsMessages) {
+      const messages = behavior.autoReplyCallsMessages as any[];
+      const delays = (behavior.autoReplyCallsDelays as any[]) || [0, 5, 30];
+
+      console.log('[UazapiWebhook] Enfileirando auto-reply messages:', messages.length);
+
+      // TODO: Enfileirar mensagens com delays
+      // Por agora, apenas loga
+      for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        const delay = delays[i] || 0;
+
+        console.log(`[UazapiWebhook] Mensagem ${i + 1}: "${msg.text}" (delay: ${delay}s)`);
+
+        // Enfileirar job com delay
+        // TODO: Implementar delayed queue ou usar setTimeout em worker
+      }
+    }
+  } catch (error) {
+    console.error('[UazapiWebhook] Erro ao processar CALL_EVENT:', error);
+  }
+}
