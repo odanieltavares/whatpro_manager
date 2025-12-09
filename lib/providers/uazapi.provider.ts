@@ -227,6 +227,158 @@ export class UazapiProvider implements IWhatsAppProvider {
   }
 
   /**
+   * Send text message
+   */
+  async sendText(params: {
+    phone: string;
+    text: string;
+    replyid?: string;
+  }, instanceToken?: string): Promise<{ success: boolean; messageid?: string; error?: string }> {
+    const token = instanceToken || this.instanceToken;
+    if (!token) {
+      throw new Error('Instance token is required to send message');
+    }
+
+    const response = await fetch(`${this.baseUrl}/send/text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': token,
+      },
+      body: JSON.stringify({
+        number: params.phone,
+        text: params.text,
+        ...(params.replyid && { replyid: params.replyid }),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: errorText || response.statusText };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      messageid: data.messageid || data.id,
+    };
+  }
+
+  /**
+   * Send media (image, video, audio, document)
+   */
+  async sendMedia(params: {
+    phone: string;
+    type: 'image' | 'video' | 'audio' | 'document' | 'ptt';
+    file: string; // URL or base64
+    text?: string; // caption
+    docName?: string; // for documents
+    replyid?: string;
+  }, instanceToken?: string): Promise<{ success: boolean; messageid?: string; error?: string }> {
+    const token = instanceToken || this.instanceToken;
+    if (!token) {
+      throw new Error('Instance token is required to send media');
+    }
+
+    const response = await fetch(`${this.baseUrl}/send/media`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': token,
+      },
+      body: JSON.stringify({
+        number: params.phone,
+        type: params.type,
+        file: params.file,
+        ...(params.text && { text: params.text }),
+        ...(params.docName && { docName: params.docName }),
+        ...(params.replyid && { replyid: params.replyid }),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: errorText || response.statusText };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      messageid: data.messageid || data.id,
+    };
+  }
+
+  /**
+   * Send reaction to a message
+   */
+  async sendReaction(params: {
+    phone: string;
+    messageId: string;
+    emoji: string;
+  }, instanceToken?: string): Promise<{ success: boolean; messageid?: string; error?: string }> {
+    const token = instanceToken || this.instanceToken;
+    if (!token) {
+      throw new Error('Instance token is required to send reaction');
+    }
+
+    const response = await fetch(`${this.baseUrl}/send/reaction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': token,
+      },
+      body: JSON.stringify({
+        number: params.phone,
+        messageid: params.messageId,
+        emoji: params.emoji,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: errorText || response.statusText };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      messageid: data.messageid || data.id,
+    };
+  }
+
+  /**
+   * Delete a message
+   */
+  async deleteMessage(params: {
+    phone: string;
+    messageId: string;
+  }, instanceToken?: string): Promise<{ success: boolean; error?: string }> {
+    const token = instanceToken || this.instanceToken;
+    if (!token) {
+      throw new Error('Instance token is required to delete message');
+    }
+
+    const response = await fetch(`${this.baseUrl}/message/delete`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': token,
+      },
+      body: JSON.stringify({
+        number: params.phone,
+        messageid: params.messageId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: errorText || response.statusText };
+    }
+
+    return { success: true };
+  }
+
+  /**
    * Map UAZ API response to standard format
    */
   private mapToStandard(raw: any): InstanceData {

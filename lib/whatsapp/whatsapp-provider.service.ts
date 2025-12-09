@@ -24,8 +24,8 @@ class UazapiProviderAdapter {
     const response = await this.client.sendText({
       phone: dto.number,
       text: dto.text || '',
-      quoted: dto.replyToWaMessageId || undefined,
-    });
+      replyid: dto.replyToWaMessageId,
+    }, this.instanceToken);
 
     if (!response.success) {
       throw new Error(response.error || 'Erro ao enviar mensagem');
@@ -42,36 +42,21 @@ class UazapiProviderAdapter {
       throw new Error('mediaUrl é obrigatório para mensagens de mídia');
     }
 
-    let response;
+    // Map type to Uazapi format
+    let mediaType: 'image' | 'video' | 'audio' | 'document' | 'ptt' = 'document';
+    if (dto.type === 'image') mediaType = 'image';
+    else if (dto.type === 'video') mediaType = 'video';
+    else if (dto.type === 'audio') mediaType = 'audio';
+    else if (dto.type === 'document') mediaType = 'document';
 
-    if (dto.type === 'image') {
-      response = await this.client.sendImage({
-        phone: dto.number,
-        mediaUrl: dto.mediaUrl,
-        caption: dto.caption,
-      });
-    } else if (dto.type === 'video') {
-      response = await this.client.sendVideo({
-        phone: dto.number,
-        mediaUrl: dto.mediaUrl,
-        caption: dto.caption,
-      });
-    } else if (dto.type === 'audio') {
-      response = await this.client.sendAudio({
-        phone: dto.number,
-        mediaUrl: dto.mediaUrl,
-      });
-    } else if (dto.type === 'document') {
-      response = await this.client.sendDocument({
-        phone: dto.number,
-        mediaUrl: dto.mediaUrl,
-        caption: dto.caption,
-        mimetype: dto.mimetype,
-        filename: dto.filename,
-      });
-    } else {
-      throw new Error(`Tipo de mídia não suportado: ${dto.type}`);
-    }
+    const response = await this.client.sendMedia({
+      phone: dto.number,
+      type: mediaType,
+      file: dto.mediaUrl,
+      text: dto.caption,
+      docName: dto.filename,
+      replyid: dto.replyToWaMessageId,
+    }, this.instanceToken);
 
     if (!response.success) {
       throw new Error(response.error || 'Erro ao enviar mídia');
@@ -88,11 +73,11 @@ class UazapiProviderAdapter {
       throw new Error('reactionEmoji e replyToWaMessageId são obrigatórios');
     }
 
-    const response = await this.client.sendReaction(
-      dto.number,
-      dto.replyToWaMessageId,
-      dto.reactionEmoji
-    );
+    const response = await this.client.sendReaction({
+      phone: dto.number,
+      messageId: dto.replyToWaMessageId,
+      emoji: dto.reactionEmoji,
+    }, this.instanceToken);
 
     if (!response.success) {
       throw new Error(response.error || 'Erro ao enviar reação');
@@ -105,9 +90,13 @@ class UazapiProviderAdapter {
   }
 
   async deleteMessage(waMessageId: string, number: string): Promise<void> {
-    const result = await this.client.deleteMessage(number, waMessageId);
+    const result = await this.client.deleteMessage({
+      phone: number,
+      messageId: waMessageId,
+    }, this.instanceToken);
+    
     if (!result.success) {
-      throw new Error('Erro ao deletar mensagem');
+      throw new Error(result.error || 'Erro ao deletar mensagem');
     }
   }
 

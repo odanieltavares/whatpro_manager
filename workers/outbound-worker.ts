@@ -10,8 +10,7 @@ import { redis } from '@/lib/redis';
 import { prisma } from '@/lib/prisma';
 import { RedisQueueService } from '@/lib/redis/redis-queue.service';
 import { RetryManager } from '@/lib/redis/retry-manager.service';
-// TODO: Reativar quando WhatsAppProviderService estiver totalmente implementado
-// import { WhatsAppProviderService } from '@/lib/whatsapp/whatsapp-provider.service';
+import { WhatsAppProviderService } from '@/lib/whatsapp/whatsapp-provider.service';
 import { EventExecutionService } from '@/lib/events/event-execution.service';
 import { QueueJob } from '@/lib/redis/types';
 
@@ -19,12 +18,12 @@ export class OutboundWorker {
   private running = false;
   private queueService: RedisQueueService;
   private retryManager: RetryManager;
-  // private providerService: WhatsAppProviderService;
+  private providerService: WhatsAppProviderService;
   private eventExecutionService: EventExecutionService;
 
   constructor() {
     this.queueService = new RedisQueueService(redis);
-    // this.providerService = new WhatsAppProviderService();
+    this.providerService = new WhatsAppProviderService();
     this.eventExecutionService = new EventExecutionService();
     this.retryManager = new RetryManager({
       redis,
@@ -84,16 +83,15 @@ export class OutboundWorker {
   private async processJob(queueKey: string, job: QueueJob) {
     try {
       // 1. Enviar mensagem via provider (Uazapi/Evolution)
-      // TODO: Implementar envio de mensagem quando WhatsAppProviderService estiver pronto
-      console.log('[OutboundWorker] AVISO: Envio de mensagem desabilitado (WhatsAppProviderService não implementado)');
-      
-      // Placeholder result para evitar erros
-      const result = {
-        waMessageId: `temp_${Date.now()}`,
-        stanzaId: null
-      };
+      const result = await this.providerService.sendOutboundMessage(
+        job.message,
+        {
+          tenantId: job.tenantId,
+          instanceId: job.instanceId,
+        }
+      );
 
-      console.log('[OutboundWorker] Mensagem simulada (não enviada):', result.waMessageId);
+      console.log('[OutboundWorker] Mensagem enviada via provider:', result.waMessageId);
 
       // 2. Salvar mapping
       await prisma.messageMapping.create({
