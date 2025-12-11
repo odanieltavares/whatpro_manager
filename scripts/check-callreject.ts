@@ -61,7 +61,7 @@ async function checkCallRejectConfig() {
     select: {
       id: true,
       instanceId: true,
-      url: true,
+      webhookUrl: true,
       enabled: true,
       events: true,
     }
@@ -73,7 +73,7 @@ async function checkCallRejectConfig() {
     webhooks.forEach(wh => {
       const inst = instances.find(i => i.id === wh.instanceId);
       console.log(`📌 ${inst?.instanceIdentifier || wh.instanceId}:`);
-      console.log(`   URL: ${wh.url}`);
+      console.log(`   URL: ${wh.webhookUrl}`);
       console.log(`   Enabled: ${wh.enabled ? '✅' : '❌'}`);
       console.log(`   Events: ${wh.events || 'N/A'}\n`);
     });
