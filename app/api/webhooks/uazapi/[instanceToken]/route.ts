@@ -398,8 +398,24 @@ async function handleMessageUpdate(instance: any, body: any) {
 // HANDLE CALL EVENT
 // ========================================
 
+// Função auxiliar de log arquivo
+import * as fs from 'fs';
+import * as path from 'path';
+
+function logDebug(message: string, data: any = {}) {
+  try {
+    const logPath = path.join(process.cwd(), 'webhook-debug.log');
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] ${message} ${JSON.stringify(data, null, 2)}\n`;
+    fs.appendFileSync(logPath, line);
+  } catch (e) {
+    console.error('Falha ao escrever log:', e);
+  }
+}
+
 async function handleCallEvent(instance: any, body: any) {
   try {
+    logDebug('========== CALL EVENT DEBUG ==========', { body });
     console.log('[UazapiWebhook] ========== CALL EVENT DEBUG ==========');
     console.log('[UazapiWebhook] Body completo:', JSON.stringify(body, null, 2));
     
@@ -450,8 +466,10 @@ async function handleCallEvent(instance: any, body: any) {
       console.log(`[UazapiWebhook] 🔒 Lock adquirido para CallID ${callId}`);
     } else {
       console.warn('[UazapiWebhook] ⚠️ Evento sem CallID, risco de processamento duplicado.');
+      logDebug('Evento sem CallID', { body });
     }
 
+    logDebug('Dados extraídos', { from, callId });
     console.log('[UazapiWebhook] CALL_EVENT recebida de:', from);
 
     // Buscar behavior da instância
@@ -463,11 +481,11 @@ async function handleCallEvent(instance: any, body: any) {
     console.log('[UazapiWebhook] autoRejectCalls:', behavior?.autoRejectCalls);
 
     if (!behavior || !behavior.autoRejectCalls) {
-      console.log('[UazapiWebhook] CallReject desabilitado para instância');
+      logDebug('CallReject desabilitado para instância', { instanceId: instance.id });
       return;
     }
 
-    console.log('[UazapiWebhook] CallReject habilitado, rejeitando chamada');
+    logDebug('CallReject habilitado, rejeitando chamada', { from, callId });
 
     // Rejeitar chamada via provider
     const { WhatsAppProviderService } = await import('@/lib/whatsapp/whatsapp-provider.service');
@@ -475,8 +493,9 @@ async function handleCallEvent(instance: any, body: any) {
 
     try {
       await providerService.callReject(instance.id, from, callId);
-      console.log('[UazapiWebhook] Chamada rejeitada com sucesso');
+      logDebug('✅ Chamada rejeitada com sucesso');
     } catch (error) {
+      logDebug('❌ Erro ao rejeitar chamada:', { error: String(error) });
       console.error('[UazapiWebhook] Erro ao rejeitar chamada:', error);
     }
 

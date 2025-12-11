@@ -45,13 +45,15 @@ export function DeleteInstanceDialog({
             <AlertTriangle className="w-5 h-5 text-destructive" />
             <AlertDialogTitle>Excluir Instância</AlertDialogTitle>
           </div>
-          <AlertDialogDescription className="space-y-3">
-            <p>
-              Você está prestes a excluir a instância <strong>{instanceName}</strong>.
-            </p>
-            <p className="text-sm">
-              Esta ação removerá a instância do WhatPro Manager e não pode ser desfeita.
-            </p>
+          <AlertDialogDescription asChild className="space-y-3">
+            <div>
+              <p>
+                Você está prestes a excluir a instância <strong>{instanceName}</strong>.
+              </p>
+              <p className="text-sm">
+                Esta ação removerá a instância do WhatPro Manager e não pode ser desfeita.
+              </p>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
 
