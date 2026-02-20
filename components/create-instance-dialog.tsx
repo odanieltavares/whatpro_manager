@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { instancesApi } from '@/lib/api/endpoints/instances';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { PROVIDERS } from '@/lib/constants';
 
 interface CreateInstanceDialogProps {
   open: boolean;
@@ -18,24 +19,28 @@ interface CreateInstanceDialogProps {
 
 export function CreateInstanceDialog({ open, onOpenChange, onSuccess }: CreateInstanceDialogProps) {
   const [name, setName] = useState('');
-  const [provider, setProvider] = useState<'EVOLUTION' | 'UAZAPI'>('EVOLUTION');
-  const [baseUrl, setBaseUrl] = useState('https://evo.whatpro.com.br');
+  const [provider, setProvider] = useState<keyof typeof PROVIDERS>('EVOLUTION');
+  const [baseUrl, setBaseUrl] = useState<string>(PROVIDERS.EVOLUTION.DEFAULT_URL);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) return;
+
     setLoading(true);
 
     try {
       await instancesApi.create({
         provider,
         name: name.trim(),
+        // We might want to pass baseUrl here if the API supported it in the create payload,
+        // effectively overriding the default if needed. For now sticking to the interface.
       });
 
       toast.success('Instância criada com sucesso!');
       setName('');
       setProvider('EVOLUTION');
-      setBaseUrl('https://evo.whatpro.com.br');
+      setBaseUrl(PROVIDERS.EVOLUTION.DEFAULT_URL);
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
@@ -46,15 +51,9 @@ export function CreateInstanceDialog({ open, onOpenChange, onSuccess }: CreateIn
     }
   };
 
-  // Auto-preencher Base URL quando provider mudar
-  const handleProviderChange = (value: 'EVOLUTION' | 'UAZAPI') => {
+  const handleProviderChange = (value: keyof typeof PROVIDERS) => {
     setProvider(value);
-    // Auto-preencher com URL padrão, mas permite edição
-    if (value === 'EVOLUTION') {
-      setBaseUrl('https://evo.whatpro.com.br');
-    } else if (value === 'UAZAPI') {
-      setBaseUrl('https://whatpro.uazapi.com');
-    }
+    setBaseUrl(PROVIDERS[value].DEFAULT_URL);
   };
 
   return (
@@ -74,14 +73,15 @@ export function CreateInstanceDialog({ open, onOpenChange, onSuccess }: CreateIn
             </Label>
             <Input
               id="name"
-              placeholder="whatpro_demo"
+              placeholder="ex: atendimento_comercial"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
               disabled={loading}
+              autoFocus
             />
-            <p className="text-sm text-muted-foreground">
-              Identificador único para esta instância
+            <p className="text-xs text-muted-foreground">
+              Identificador único (sem espaços ou caracteres especiais)
             </p>
           </div>
 
@@ -91,15 +91,18 @@ export function CreateInstanceDialog({ open, onOpenChange, onSuccess }: CreateIn
             </Label>
             <Select
               value={provider}
-              onValueChange={handleProviderChange}
+              onValueChange={(val) => handleProviderChange(val as keyof typeof PROVIDERS)}
               disabled={loading}
             >
               <SelectTrigger id="provider">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="EVOLUTION">Evolution API</SelectItem>
-                <SelectItem value="UAZAPI">Uazapi</SelectItem>
+                {Object.values(PROVIDERS).map((p) => (
+                  <SelectItem key={p.NAME} value={p.NAME}>
+                    {p.LABEL}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -110,20 +113,22 @@ export function CreateInstanceDialog({ open, onOpenChange, onSuccess }: CreateIn
             </Label>
             <Input
               id="baseUrl"
-              placeholder="https://evo.whatpro.com.br"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               required
               disabled={loading}
             />
-            <p className="text-sm text-muted-foreground">
-              URL do servidor do provider (preenchido automaticamente)
+            <p className="text-xs text-muted-foreground">
+              Endpoint do serviço de integração
             </p>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-            <p className="text-sm text-blue-800">
-              <strong>ℹ️ Token de API:</strong> Será gerado automaticamente pelo provider após a criação.
+          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+            <p className="text-sm text-blue-800 dark:text-blue-300 flex items-center gap-2">
+              <span className="text-base">ℹ️</span>
+              <span>
+                <strong>Token de API:</strong> Será gerado e configurado automaticamente.
+              </span>
             </p>
           </div>
 

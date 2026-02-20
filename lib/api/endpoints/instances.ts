@@ -50,8 +50,9 @@ export const instancesApi = {
   /**
    * Delete instance
    */
-  delete: async (id: string): Promise<void> => {
-    await api.delete(`/instances/${id}`);
+  delete: async (id: string, deleteFromApi: boolean = false): Promise<void> => {
+    const url = deleteFromApi ? `/instances/${id}?deleteFromApi=true` : `/instances/${id}`;
+    await api.delete(url);
   },
 
   /**
@@ -91,6 +92,14 @@ export const instancesApi = {
    */
   updateBehavior: async (id: string, payload: Partial<InstanceBehavior>): Promise<InstanceBehavior> => {
     const { data } = await api.put<InstanceBehavior>(`/instances/${id}/behavior`, payload);
+    return data;
+  },
+
+  /**
+   * Sync instances with providers
+   */
+  sync: async (): Promise<any> => {
+    const { data } = await api.post('/sync-raw');
     return data;
   },
 };

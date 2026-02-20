@@ -11,6 +11,9 @@ export interface Instance {
   status: string;
   baseUrl: string;
   apiToken?: string; // Optional, sanitized in responses
+  profileName?: string;
+  profilePicUrl?: string;
+  phoneNumber?: string;
   createdAt: string;
   updatedAt: string;
   project?: {

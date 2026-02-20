@@ -28,15 +28,21 @@ async function updateProviders() {
     const evolutionToken = await question('Evolution API Token (apikey): ');
     if (evolutionToken.trim()) {
       const encrypted = encrypt(evolutionToken.trim());
-      await prisma.providerConfig.update({
+      await prisma.providerConfig.upsert({
         where: {
           provider_baseUrl: {
-            provider: 'EVOLUTION',
+            provider: 'Evolution',
             baseUrl: 'https://evo.whatpro.com.br'
           }
         },
-        data: {
+        update: {
           adminToken: encrypted
+        },
+        create: {
+          provider: 'Evolution',
+          baseUrl: 'https://evo.whatpro.com.br',
+          adminToken: encrypted,
+          isActive: true
         }
       });
       console.log('✅ Evolution token updated\n');
@@ -46,15 +52,21 @@ async function updateProviders() {
     const uazapiToken = await question('Uazapi Admin Token: ');
     if (uazapiToken.trim()) {
       const encrypted = encrypt(uazapiToken.trim());
-      await prisma.providerConfig.update({
+      await prisma.providerConfig.upsert({
         where: {
           provider_baseUrl: {
-            provider: 'UAZAPI',
+            provider: 'UazapiGo',
             baseUrl: 'https://whatpro.uazapi.com'
           }
         },
-        data: {
+        update: {
           adminToken: encrypted
+        },
+        create: {
+          provider: 'UazapiGo',
+          baseUrl: 'https://whatpro.uazapi.com',
+          adminToken: encrypted,
+          isActive: true
         }
       });
       console.log('✅ Uazapi token updated\n');

@@ -63,7 +63,18 @@ export class EvolutionProvider implements IWhatsAppProvider {
     }
 
     const data = await response.json();
-    return this.mapToStandard(data.instance);
+    
+    // Inject the generated token from `hash` (string), `hash.apikey` (object), or `instance.token` if present
+    const tokenStr = typeof data.hash === 'string' 
+      ? data.hash 
+      : (data.hash?.apikey || data.instance?.token || data.apikey || '');
+
+    const instanceWithToken = {
+      ...data.instance,
+      token: tokenStr
+    };
+
+    return this.mapToStandard(instanceWithToken);
   }
 
   async getStatus(instanceName: string): Promise<InstanceData> {

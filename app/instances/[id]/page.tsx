@@ -130,18 +130,9 @@ export default function InstanceDetailPage() {
       setDeleting(true);
       setShowDeleteDialog(false);
       
-      const url = `/api/instances/${instanceId}${
-        deleteFromApi ? '?deleteFromApi=true' : ''
-      }`;
+      await instancesApi.delete(instanceId, deleteFromApi);
       
-      const response = await fetch(url, { method: 'DELETE' });
-      const data = await response.json();
-      
-      if (data.warning) {
-        toast.warning(data.warning);
-      } else if (data.success) {
-        toast.success(data.message || 'Instância excluída');
-      }
+      toast.success('Instância excluída');
       
       router.push('/instances');
     } catch (error: unknown) {

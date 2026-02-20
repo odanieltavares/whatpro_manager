@@ -8,6 +8,8 @@ Sistema de gerenciamento de instâncias WhatsApp para Evolution API e Uazapi.
 - **[Como Usar](./docs/COMO_USAR.md)** - Guia de uso diário
 - **[Produção](./docs/PRODUCAO.md)** - Deploy em produção
 - **[Comandos](./docs/COMANDOS.md)** - Referência rápida de comandos
+- **[Changelog](./CHANGELOG.md)** - Histórico de mudanças da aplicação
+- **[Dev Log](./docs/DEV_LOG.md)** - Log técnico e histórico de debugs de desenvolvimento
 
 ## 🚀 Início Rápido
 

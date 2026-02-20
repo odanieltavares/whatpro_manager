@@ -51,6 +51,7 @@ export async function POST(
       const pairData = await provider.generatePaircode(instance.apiToken || '', phone);
 
       return NextResponse.json({
+        code: pairData.code,
         paircode: pairData.code,
         phone,
         instanceId: instance.id,
@@ -74,6 +75,7 @@ export async function POST(
       const pairData = await provider.generatePaircode(instance.instanceIdentifier, phone || '');
 
       return NextResponse.json({
+        code: pairData.code,
         paircode: pairData.code,
         phone: phone || null,
         instanceId: instance.id,
